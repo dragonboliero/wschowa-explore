@@ -8,8 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --paper: #EDE7D2;
@@ -551,18 +551,22 @@ function openCameraModal(p){
 }
 
 function startCamera(p){
-  if(typeof jsQR === 'undefined' || !navigator.mediaDevices){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     const status=document.getElementById('camera-status');
-    if(status) status.textContent='Skaner kamery niedostępny w tym środowisku.';
-    showToast('Kamera/skaner niedostępne w tym podglądzie — otwórz plik bezpośrednio w przeglądarce telefonu.', 4500);
+    if(status) status.textContent='Ta przeglądarka nie obsługuje dostępu do kamery.';
     return;
   }
+  const decodeAvailable = (typeof jsQR !== 'undefined');
   navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } }).then(stream=>{
     cameraStream=stream;
     const video=document.getElementById('scan-video');
     if(!video){ stopCamera(); return; }
     video.srcObject=stream;
     const status=document.getElementById('camera-status');
+    if(!decodeAvailable){
+      if(status) status.textContent='Kamera działa, ale biblioteka do odczytu kodu się nie wczytała — zamknij i użyj przycisku "Skanuj kod QR (symulacja)" zamiast tego.';
+      return; // permission granted and stream visible, but no point running a decode loop without jsQR
+    }
     if(status) status.textContent='Wyceluj w kod QR…';
     const canvas=document.createElement('canvas');
     const ctx=canvas.getContext('2d');
@@ -586,10 +590,13 @@ function startCamera(p){
       cameraRAF=requestAnimationFrame(tick);
     }
     cameraRAF=requestAnimationFrame(tick);
-  }).catch(()=>{
+  }).catch((err)=>{
     const status=document.getElementById('camera-status');
-    if(status) status.textContent='Brak dostępu do kamery.';
-    showToast('Kamera zablokowana — to też wymaga https, a nie file://. Ustaw pozycję ręcznie i użyj przycisku "Skanuj kod QR (symulacja)" zamiast kamery.', 5200);
+    if(status){
+      status.textContent = err && err.name==='NotAllowedError'
+        ? 'Odmówiono dostępu do kamery. Sprawdź ustawienia uprawnień strony w przeglądarce i spróbuj ponownie.'
+        : 'Nie udało się uruchomić kamery: '+(err && err.message ? err.message : 'nieznany błąd')+'.';
+    }
   });
 }
 
