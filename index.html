@@ -106,6 +106,9 @@
 
   .map-wrap{ border-radius:18px; overflow:hidden; border:1px solid var(--line); margin-bottom:6px; background:var(--paper-dark); }
   .map-hint-text{ font-size:11.5px; color:var(--ink-soft); text-align:center; margin-top:8px; }
+  .pos-readout{ display:flex; align-items:center; gap:8px; background:var(--paper-dark); border-radius:12px; padding:10px 13px; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink); }
+  .pos-readout .pin{ flex:0 0 auto; }
+  .pos-readout .acc{ color:var(--ink-soft); font-size:10.5px; margin-left:auto; }
   .leaflet-container{ font-family:'IBM Plex Sans', sans-serif; background:var(--paper-dark) !important; }
 
   .point-card{ display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:14px; margin-bottom:9px; border:1px solid var(--line); cursor:pointer; background:var(--paper); }
@@ -255,7 +258,7 @@ const state = {
   screen:'home', areaId:null, pointId:null, filter:'all',
   isOffline:false,
   discovered:{}, pendingQueue:[], lastAttempt:{},
-  scanning:false, playerLatLng:null,
+  scanning:false, playerLatLng:null, playerAccuracy:null,
   _mapInstance:null
 };
 
@@ -288,6 +291,7 @@ function go(screen, extra={}){
     const bearing = Math.random()*360;
     const dist = p.hintR + 70 + Math.random()*60;
     state.playerLatLng = destPoint(p.lat, p.lng, dist, bearing);
+    state.playerAccuracy = null;
   }
   render();
 }
@@ -433,6 +437,11 @@ function renderPointScreen(el){
     <p class="eyebrow">${CATS[p.cat].label}${discovered?' · odkryto':''}</p>
     <div class="map-wrap"><div id="point-map" style="height:260px;"></div></div>
     <p class="map-hint-text">Stuknij mapę, by przesunąć swoją pozycję (symulacja jazdy w terenie)</p>
+    <div class="pos-readout">
+      <span class="pin">📍</span>
+      <span>${state.playerLatLng[0].toFixed(6)}, ${state.playerLatLng[1].toFixed(6)}</span>
+      ${state.playerAccuracy ? `<span class="acc">±${Math.round(state.playerAccuracy)} m</span>` : ''}
+    </div>
     <div class="hint-box"><b>WSKAZÓWKA W TERENIE</b>${p.hint}</div>
     <button class="scan-btn ${state.scanning?'scanning':''}" id="scan-btn" ${state.scanning?'disabled':''}>
       ${state.scanning ? 'Skanowanie…' : (discovered ? 'Zeskanuj ponownie (symulacja)' : 'Skanuj kod QR (symulacja)')}
@@ -465,7 +474,10 @@ function renderPointScreen(el){
   const youMarker = L.marker(state.playerLatLng, { icon: youDivIcon() }).addTo(map);
   map.on('click', (e)=>{
     state.playerLatLng=[e.latlng.lat, e.latlng.lng];
+    state.playerAccuracy=null;
     youMarker.setLatLng(e.latlng);
+    const readout=document.querySelector('.pos-readout');
+    if(readout) readout.innerHTML = `<span class="pin">📍</span><span>${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}</span>`;
   });
 
   document.getElementById('scan-btn').addEventListener('click', ()=>attemptScan(p));
@@ -489,6 +501,7 @@ function useManualLatLng(p){
     return;
   }
   state.playerLatLng=[parts[0], parts[1]];
+  state.playerAccuracy=null;
   showToast('Ustawiono pozycję ręcznie ✓');
   renderPointScreen(document.getElementById('screen'));
 }
@@ -500,6 +513,7 @@ function useRealGps(p){
   navigator.geolocation.getCurrentPosition(
     (pos)=>{
       state.playerLatLng=[pos.coords.latitude, pos.coords.longitude];
+      state.playerAccuracy=pos.coords.accuracy;
       showToast(`Pobrano lokalizację (dokładność ±${Math.round(pos.coords.accuracy)} m)`);
       renderPointScreen(document.getElementById('screen'));
     },
