@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wschowa Explore — prototyp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --paper: #EDE7D2;
+    --paper-dark: #E2DAC0;
+    --ink: #22301F;
+    --ink-soft: #4B5A45;
+    --pine: #2F5D42;
+    --amber: #C97A2B;
+    --stone: #8B6F47;
+    --line: rgba(34,48,31,0.14);
+    --success: #2F7D4F;
+    --danger: #A64B3C;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'IBM Plex Sans', sans-serif;
+    background: radial-gradient(ellipse at 30% 0%, #24392C 0%, #14231C 55%, #0E1A14 100%);
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:28px 12px; color: var(--ink);
+  }
+  .rig{ display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .rig-label{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.04em; color: rgba(237,231,210,0.55); }
+  .phone{
+    width:390px; height:780px; background: var(--paper);
+    border-radius:44px; border: 8px solid #0E1A14;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+    position:relative; overflow:hidden; display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:8px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:#0E1A14; border-radius:14px; z-index:50; }
+  .topbar{ height:44px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:'IBM Plex Mono', monospace; font-size:11px; color: var(--ink-soft); }
+  .header{ flex:0 0 auto; padding:2px 20px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); }
+  .header .backbtn{ width:32px;height:32px;border-radius:50%; display:flex;align-items:center;justify-content:center; background:rgba(34,48,31,0.06); cursor:pointer; flex:0 0 auto; }
+  .header .backbtn svg{width:16px;height:16px;}
+  .header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:19px; margin:0; line-height:1.2; flex:1; }
+  .status-pill{ font-family:'IBM Plex Mono', monospace; font-size:10px; padding:5px 9px; border-radius:20px; display:flex; align-items:center; gap:5px; cursor:pointer; flex:0 0 auto; border:1px solid var(--line); white-space:nowrap; }
+  .status-pill .dot{width:6px;height:6px;border-radius:50%;}
+  .status-pill.online{color:var(--pine);} .status-pill.online .dot{background:var(--pine);}
+  .status-pill.offline{color:var(--danger);} .status-pill.offline .dot{background:var(--danger);}
+
+  .screen{ flex:1 1 auto; overflow-y:auto; padding:18px 20px 100px; }
+  .screen::-webkit-scrollbar{width:0;}
+
+  .tabbar{ position:absolute; bottom:0; left:0; right:0; height:74px; background: var(--paper); border-top:1px solid var(--line); display:flex; padding-bottom:14px; z-index:40; }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; color: var(--ink-soft); font-size:11px; font-weight:500; }
+  .tab svg{width:20px;height:20px;}
+  .tab.active{color:var(--pine);}
+
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); }
+  .lede{ font-family:'Fraunces', serif; font-weight:600; font-size:24px; line-height:1.15; margin:6px 0 4px; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
+
+  .home-progress{ display:flex; align-items:center; gap:10px; background:var(--paper-dark); border-radius:14px; padding:12px 14px; margin:16px 0 18px; }
+  .home-progress .num{ font-family:'Fraunces', serif; font-weight:600; font-size:22px; color:var(--pine); }
+  .home-progress .bar{ flex:1; height:6px; border-radius:6px; background:rgba(34,48,31,0.12); overflow:hidden; }
+  .home-progress .bar span{ display:block; height:100%; background:var(--pine); }
+
+  .chiprow{ display:flex; gap:8px; overflow-x:auto; margin:14px 0 16px; padding-bottom:2px;}
+  .chip{ font-size:12px; font-weight:500; padding:7px 13px; border-radius:20px; border:1px solid var(--line); white-space:nowrap; cursor:pointer; color:var(--ink-soft); flex:0 0 auto; }
+  .chip.active{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+
+  .map-wrap{ border-radius:18px; overflow:hidden; border:1px solid var(--line); margin-bottom:6px; background:var(--paper-dark); }
+  .map-hint-text{ font-size:11.5px; color:var(--ink-soft); text-align:center; margin-top:8px; }
+  .leaflet-container{ font-family:'IBM Plex Sans', sans-serif; background:var(--paper-dark) !important; }
+  .pos-readout{ display:flex; align-items:center; gap:8px; background:var(--paper-dark); border-radius:12px; padding:10px 13px; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink); }
+  .pos-readout .acc{ color:var(--ink-soft); font-size:10.5px; margin-left:auto; }
+
+  .point-card{ display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:14px; margin-bottom:9px; border:1px solid var(--line); cursor:pointer; background:var(--paper); }
+  .cat-icon{ width:36px; height:36px; border-radius:10px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff; }
+  .cat-icon svg{ width:18px; height:18px; }
+  .point-card .name{ font-weight:600; font-size:14px; margin:0 0 2px; }
+  .point-card .cat-label{ font-size:11px; color:var(--ink-soft); }
+  .point-card .check{ margin-left:auto; flex:0 0 auto; }
+
+  .hint-box{ background:var(--paper-dark); border-radius:14px; padding:14px; font-size:13.5px; line-height:1.55; margin:14px 0; color:var(--ink); }
+  .hint-box b{ display:block; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.03em; color:var(--ink-soft); margin-bottom:5px; }
+  .scan-btn{ width:100%; padding:15px; border-radius:14px; border:none; cursor:pointer; background:var(--ink); color:var(--paper); font-weight:600; font-size:14.5px; font-family:'IBM Plex Sans', sans-serif; margin-top:8px; }
+  .scan-btn.scanning{ background:var(--stone); }
+  .scan-btn:disabled{ opacity:0.6; cursor:default; }
+  .feedback{ margin-top:12px; padding:13px 14px; border-radius:12px; font-size:13px; line-height:1.5; }
+  .feedback.ok{ background:rgba(47,125,79,0.12); color:var(--success); }
+  .feedback.no{ background:rgba(166,75,60,0.1); color:var(--danger); }
+  .feedback .warm{ display:block; margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; opacity:0.8; }
+
+  .stat-grid{ display:flex; gap:10px; margin:14px 0 20px; }
+  .stat{ flex:1; background:var(--paper-dark); border-radius:14px; padding:13px; text-align:center; }
+  .stat .n{ font-family:'Fraunces', serif; font-weight:600; font-size:22px; color:var(--pine); }
+  .stat .l{ font-size:10.5px; color:var(--ink-soft); margin-top:2px; }
+
+  .badge-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:20px; }
+  .badge{ border-radius:14px; padding:14px; text-align:center; border:1px solid var(--line); background:var(--paper-dark); }
+  .badge.locked{ opacity:0.4; }
+  .badge .icn{ font-size:22px; margin-bottom:6px; }
+  .badge .t{ font-size:11.5px; font-weight:600; line-height:1.3; }
+
+  .queue-item{ display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:12px; background:var(--paper-dark); margin-bottom:8px; font-size:12.5px; }
+  .queue-item .tag{ font-family:'IBM Plex Mono', monospace; font-size:10px; padding:3px 8px; border-radius:20px; margin-left:auto; }
+  .tag.pending{ background:rgba(201,122,43,0.18); color:var(--amber); }
+  .sync-btn{ width:100%; padding:13px; border-radius:12px; border:1px solid var(--pine); background:transparent; color:var(--pine); font-weight:600; font-size:13.5px; cursor:pointer; margin-top:6px; }
+  .sync-btn:disabled{ opacity:0.35; cursor:default; }
+  .empty{ text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px; }
+
+  .test-panel{ margin-top:18px; padding-top:16px; border-top:1px dashed var(--line); }
+  .test-btn{ width:100%; padding:13px; border-radius:12px; border:1px solid var(--amber); background:rgba(201,122,43,0.08); color:var(--amber); font-weight:600; font-size:13px; cursor:pointer; margin-bottom:9px; font-family:'IBM Plex Sans', sans-serif; }
+  .test-btn.ghost{ background:transparent; color:var(--ink-soft); border-color:var(--line); }
+  .manual-geo{ display:flex; gap:8px; margin-bottom:9px; }
+  .manual-geo input{ flex:1; padding:12px 13px; border-radius:12px; border:1px solid var(--line); font-family:'IBM Plex Mono', monospace; font-size:12.5px; background:var(--paper); color:var(--ink); }
+  .manual-geo button{ flex:0 0 auto; padding:0 16px; border-radius:12px; border:1px solid var(--pine); background:var(--pine); color:var(--paper); font-weight:600; font-size:12.5px; cursor:pointer; font-family:'IBM Plex Sans', sans-serif; }
+
+  .modal-overlay{ position:absolute; inset:0; z-index:80; background:rgba(14,26,20,0.92); display:none; align-items:center; justify-content:center; padding:26px; }
+  .modal-overlay.show{ display:flex; }
+  .modal-card{ background:var(--paper); border-radius:20px; padding:22px; width:100%; max-width:300px; text-align:center; }
+  .modal-card h3{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; margin:0 0 4px; }
+  .modal-note{ font-size:11.5px; color:var(--ink-soft); line-height:1.55; margin-top:8px; }
+  .modal-close{ margin-top:14px; padding:11px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink); font-weight:600; cursor:pointer; width:100%; font-family:'IBM Plex Sans', sans-serif; }
+  #qr-render-target{ background:#fff; padding:14px; border-radius:12px; display:inline-block; margin:10px 0; }
+  .camera-wrap{ position:relative; width:100%; aspect-ratio:1/1; border-radius:14px; overflow:hidden; background:#000; margin:10px 0; }
+  .camera-wrap video{ width:100%; height:100%; object-fit:cover; }
+  .camera-frame{ position:absolute; inset:15%; border:3px solid rgba(255,255,255,0.85); border-radius:16px; pointer-events:none; }
+
+  @media (max-width:460px){
+    body{ padding:0; background:var(--paper); }
+    .rig-label{ display:none; }
+    .phone{ width:100vw; height:100vh; border-radius:0; border:none; box-shadow:none; }
+    .notch{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="rig">
+  <div class="rig-label">PROTOTYP — WSCHOWA EXPLORE · Przemęcki Park Krajobrazowy</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="topbar">
+      <span id="clock">09:41</span>
+      <span id="status-pill-slot"></span>
+    </div>
+    <div class="header" id="header"></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+    <div class="tabbar" id="tabbar"></div>
+    <div class="modal-overlay" id="modal-root"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================================
+   KATEGORIE ATRAKCJI
+   Każdej kategorii odpowiada kolor (używany na mapie, ikonach, obwódkach) i etykieta
+   wyświetlana w aplikacji. Żeby dodać nową kategorię: dopisz nowy klucz tutaj,
+   dodaj dla niego case w funkcji icon() poniżej, i używaj tego klucza jako `cat`
+   przy nowych punktach.
+================================================================================ */
+const CATS = {
+  przyroda: { label:'Przyroda', color:'#3F7D52' },
+  zabytki:  { label:'Zabytki', color:'#8B6F47' },
+  biznes:   { label:'Lokalny biznes', color:'#C97A2B' },
+  eventy:   { label:'Eventy sezonowe', color:'#7A4569' }
+};
+
+function icon(cat){
+  switch(cat){
+    case 'przyroda': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21c-4-2-7-6-7-11a7 7 0 0114 0c0 5-3 9-7 11z"/><path d="M12 21V9"/></svg>';
+    case 'zabytki': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21h16M5 21V10M19 21V10M3 10l9-6 9 6M8 10v11M12 10v11M16 10v11"/></svg>';
+    case 'biznes': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l1.5-5h15L21 9M4 9h16v11H4zM4 9a3 3 0 006 0M10 9a3 3 0 006 0M16 9a3 3 0 006 0"/></svg>';
+    case 'eventy': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+  }
+}
+
+/* ================================================================================
+   GŁÓWNE DANE TREŚCI — EDYTUJ TUTAJ
+   ================================================================================
+   To jedyne miejsce, które musisz ruszać, żeby zmienić opisy, współrzędne, dodać
+   lub usunąć punkty. Struktura: jeden OBSZAR (na razie tylko Przemęcki Park
+   Krajobrazowy) zawiera listę PUNKTÓW (atrakcji).
+
+   POLA OBSZARU:
+     id       – wewnętrzny identyfikator obszaru (bez spacji/polskich znaków)
+     name     – nazwa wyświetlana użytkownikowi
+     tagline  – krótki opis pod nazwą
+     distance – tekst informacyjny o odległości/dojeździe, pokazywany na karcie
+     center   – [lat, lng] punkt, na którym centruje się mapa przy wejściu w obszar
+     zoom     – początkowy poziom przybliżenia mapy obszaru (12–13 to dobry zakres
+                dla obszaru wielkości kilku km; wyżej = bardziej przybliżone)
+
+   POLA KAŻDEGO PUNKTU (atrakcji):
+     id       – unikalny identyfikator punktu (np. 'pk1'). NIE zmieniaj go później —
+                to na jego podstawie zapisywany jest postęp użytkownika.
+     cat      – kategoria z obiektu CATS powyżej: 'przyroda' | 'zabytki' | 'biznes' | 'eventy'
+     name     – nazwa atrakcji wyświetlana użytkownikowi
+     hint     – wskazówka tekstowa pomagająca znaleźć dokładne miejsce w terenie
+                (użytkownik widzi to PRZED znalezieniem punktu, więc nie zdradzaj
+                zbyt wprost, ale daj wystarczająco dużo, by dało się znaleźć)
+     lat, lng – PRAWDZIWE, dokładne współrzędne GPS miejsca (stopnie dziesiętne,
+                np. z Google Maps: przytrzymaj palec na mapie, skopiuj liczby).
+                To jest ukryta, dokładna lokalizacja — na mapie w apce pokazywany
+                jest tylko okrąg wokół niej (patrz hintR), nie pineska w tym miejscu.
+     hintR    – promień w METRACH okręgu "przybliżonego obszaru" widocznego na mapie.
+                Otwarty teren (łąka, jezioro) → mniejszy promień, np. 150-220.
+                Gęsty las / trudna orientacja → większy promień, np. 250-350.
+     qrToken  – unikalny tekst zakodowany w naklejce QR tego punktu. Musi być
+                unikalny w całej aplikacji. Możesz go dowolnie zmienić, ale jeśli
+                to zrobisz, wygeneruj nowy kod QR w apce (przycisk "Pokaż kod QR
+                tego punktu") i wydrukuj naklejkę ponownie.
+
+   JAK DODAĆ NOWY PUNKT:
+     Skopiuj cały blok { ... } jednego z punktów poniżej, wklej przed lub po nim
+     (pamiętaj o przecinku między obiektami), i zmień wszystkie pola.
+
+   JAK DODAĆ NOWY OBSZAR (np. gdy wrócicie do Leśnej Doliny / Ujścia Baryczy):
+     Skopiuj cały obiekt obszaru (wraz z jego points:[...]) i dodaj jako kolejny
+     element tablicy AREAS. Reszta aplikacji (mapa, lista, nawigacja) obsłuży to
+     automatycznie — nie trzeba nic więcej zmieniać w kodzie.
+================================================================================ */
+const AREAS = [
+  {
+    id:'przemecki',
+    name:'Przemęcki Park Krajobrazowy',
+    tagline:'Jeziora polodowcowe, sosnowe bory i wydmy śródlądowe',
+    distance:'~20 km od Wschowy',
+    center:[51.9500, 16.3000],
+    zoom:12,
+    points:[
+      {
+        id:'pk1',
+        cat:'przyroda',
+        name:'Rozstaj dróg Lgiń/Zaborówiec',
+        hint:'Ławeczka na rozstaju dróg.',
+        lat:51.875533, lng:16.3000,
+        hintR:220,
+        qrToken:'WSCHOWA-EXPLORE::PRZEMECKI::PK1'
+      },
+      {
+        id:'pk2',
+        cat:'zabytki',
+        name:'Przydrożna kapliczka',
+        hint:'Szukaj przy skrzyżowaniu starego traktu z drogą do młyna, niedaleko lipowej alei.',
+        lat:51.9440, lng:16.3110,
+        hintR:160,
+        qrToken:'WSCHOWA-EXPLORE::PRZEMECKI::PK2'
+      },
+      {
+        id:'pk3',
+        cat:'biznes',
+        name:'Pasieka Miodowy Zakątek',
+        hint:'Drewniana chata z ulami ustawionymi rzędem, tuż przy granicy lasu.',
+        lat:51.9560, lng:16.3050,
+        hintR:180,
+        qrToken:'WSCHOWA-EXPLORE::PRZEMECKI::PK3'
+      },
+      {
+        id:'pk4',
+        cat:'eventy',
+        name:'Piknik nad wodą (cze–sie)',
+        hint:'Polana z pomostem, gdzie latem organizowane są wieczorne ogniska.',
+        lat:51.9480, lng:16.3200,
+        hintR:200,
+        qrToken:'WSCHOWA-EXPLORE::PRZEMECKI::PK4'
+      }
+    ]
+  }
+];
+
+/* Wymagana bliskość (w metrach) między zgłoszoną pozycją a prawdziwym punktem,
+   żeby skan został zaakceptowany. Zwiększ dla dokładniejszego wymogu, zmniejsz
+   jeśli w terenie GPS zbyt często nie łapie tolerancji. */
+const SCAN_TOLERANCE_METERS = 60;
+
+/* ============================= STATE ============================= */
+const state = {
+  screen:'area', areaId:'przemecki', pointId:null, filter:'all',
+  isOffline:false,
+  discovered:{}, pendingQueue:[], lastAttempt:{},
+  scanning:false, playerLatLng:null, playerAccuracy:null
+};
+
+function allPoints(){ return AREAS.flatMap(a=>a.points.map(p=>({...p, areaId:a.id}))); }
+function getArea(id){ return AREAS.find(a=>a.id===id); }
+function getPoint(areaId,pointId){ return getArea(areaId).points.find(p=>p.id===pointId); }
+function isDiscovered(id){ return !!state.discovered[id]; }
+function statusOf(id){ return state.discovered[id]?.status; }
+
+/* ============================= GEO HELPERS ============================= */
+function destPoint(lat,lng,distM,bearingDeg){
+  const R=6371000, brng=bearingDeg*Math.PI/180;
+  const lat1=lat*Math.PI/180, lng1=lng*Math.PI/180;
+  const lat2=Math.asin(Math.sin(lat1)*Math.cos(distM/R)+Math.cos(lat1)*Math.sin(distM/R)*Math.cos(brng));
+  const lng2=lng1+Math.atan2(Math.sin(brng)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+  return [lat2*180/Math.PI, lng2*180/Math.PI];
+}
+
+function showToast(msg, ms=2400){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t=setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+function go(screen, extra={}){
+  Object.assign(state, {screen}, extra);
+  if(screen==='point'){
+    const p = getPoint(state.areaId, state.pointId);
+    const bearing = Math.random()*360;
+    const dist = p.hintR + 70 + Math.random()*60;
+    state.playerLatLng = destPoint(p.lat, p.lng, dist, bearing);
+    state.playerAccuracy = null;
+  }
+  render();
+}
+
+/* ============================= RENDER: SHELL ============================= */
+function render(){
+  renderStatusPill(); renderHeader(); renderTabbar();
+  const el = document.getElementById('screen');
+  el.innerHTML='';
+  if(state.screen==='area') renderAreaScreen(el);
+  else if(state.screen==='point') renderPointScreen(el);
+  else if(state.screen==='profile') renderProfile(el);
+  el.scrollTop=0;
+}
+
+function renderStatusPill(){
+  const slot=document.getElementById('status-pill-slot');
+  slot.innerHTML = `<span class="status-pill ${state.isOffline?'offline':'online'}" data-action="toggleOffline">
+      <span class="dot"></span>${state.isOffline?'Offline (symulacja)':'Online'}
+    </span>`;
+}
+
+function renderHeader(){
+  const h=document.getElementById('header');
+  if(state.screen==='area'){ h.innerHTML = `<h1>Wschowa Explore</h1>`; }
+  else if(state.screen==='point'){ const p=getPoint(state.areaId,state.pointId); h.innerHTML = `<div class="backbtn" data-action="goArea">${backIcon()}</div><h1>${p.name}</h1>`; }
+  else if(state.screen==='profile'){ h.innerHTML = `<h1>Twoje postępy</h1>`; }
+}
+
+function backIcon(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22301F" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>'; }
+
+function renderTabbar(){
+  const t=document.getElementById('tabbar');
+  t.innerHTML = `
+    <div class="tab ${state.screen==='area'||state.screen==='point'?'active':''}" data-action="goArea">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      Odkrywaj
+    </div>
+    <div class="tab ${state.screen==='profile'?'active':''}" data-action="goProfile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-5 6-6 8-6s6.5 1 8 6"/></svg>
+      Profil
+    </div>`;
+}
+
+function catDivIcon(color, discovered){
+  return L.divIcon({
+    className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:${discovered?'0 0 0 3px rgba(47,125,79,0.35)':'0 1px 3px rgba(0,0,0,0.4)'};"></div>`,
+    iconSize:[16,16], iconAnchor:[8,8]
+  });
+}
+function youDivIcon(){
+  return L.divIcon({
+    className:'', html:`<div style="width:22px;height:22px;border-radius:50%;background:rgba(34,48,31,0.18);display:flex;align-items:center;justify-content:center;"><div style="width:11px;height:11px;border-radius:50%;background:#22301F;border:2px solid #EDE7D2;"></div></div>`,
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+}
+
+/* ============================= RENDER: AREA (ekran startowy) ============================= */
+function renderAreaScreen(el){
+  const a=getArea(state.areaId);
+  const total=a.points.length;
+  const found=a.points.filter(p=>isDiscovered(p.id)).length;
+  const cats=['all',...new Set(a.points.map(p=>p.cat))];
+  const pts=a.points.filter(p=> state.filter==='all' || p.cat===state.filter);
+
+  el.innerHTML = `
+    <p class="eyebrow">${a.distance}</p>
+    <p class="lede">${a.name}</p>
+    <p class="sub">${a.tagline}</p>
+    <div class="home-progress">
+      <div class="num">${found}/${total}</div>
+      <div class="bar"><span style="width:${(found/total*100).toFixed(0)}%"></span></div>
+    </div>
+    <div class="map-wrap"><div id="area-map" style="height:200px;"></div></div>
+    <p class="map-hint-text">Przybliżone strefy punktów na prawdziwej mapie — dokładną lokalizację znajdziesz w terenie</p>
+    <div class="chiprow">
+      ${cats.map(c=>`<div class="chip ${state.filter===c?'active':''}" data-action="setFilter" data-filter="${c}">${c==='all'?'Wszystkie':CATS[c].label}</div>`).join('')}
+    </div>
+    ${pts.map(p=>`
+      <div class="point-card" data-action="openPoint" data-point="${p.id}">
+        <div class="cat-icon" style="background:${CATS[p.cat].color}">${icon(p.cat)}</div>
+        <div><p class="name">${p.name}</p><p class="cat-label">${CATS[p.cat].label}</p></div>
+        <div class="check">${checkBadge(p.id)}</div>
+      </div>
+    `).join('')}
+  `;
+
+  const map = L.map('area-map', { zoomControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false, boxZoom:false, keyboard:false, tap:false })
+    .setView(a.center, a.zoom);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap contributors', maxZoom:18 }).addTo(map);
+  a.points.forEach(p=>{
+    L.circle([p.lat,p.lng], { radius:p.hintR, color:CATS[p.cat].color, weight:2, dashArray:'4,5', fillOpacity:0.08 }).addTo(map);
+    L.marker([p.lat,p.lng], { icon: catDivIcon(CATS[p.cat].color, isDiscovered(p.id)) })
+      .addTo(map).on('click', ()=>go('point', {pointId:p.id}));
+  });
+}
+
+function checkBadge(pointId){
+  const s=statusOf(pointId);
+  if(s==='synced') return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>';
+  if(s==='pending') return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C97A2B" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+  return '';
+}
+
+/* ============================= RENDER: POINT ============================= */
+function renderPointScreen(el){
+  const p=getPoint(state.areaId,state.pointId);
+  const discovered=isDiscovered(p.id);
+
+  const pointZoom = p.hintR < 100 ? 18 : (p.hintR < 200 ? 15 : 14);
+
+  el.innerHTML = `
+    <div class="cat-icon" style="background:${CATS[p.cat].color};margin-bottom:10px;">${icon(p.cat)}</div>
+    <p class="eyebrow">${CATS[p.cat].label}${discovered?' · odkryto':''}</p>
+    <div class="map-wrap"><div id="point-map" style="height:260px;"></div></div>
+    <p class="map-hint-text">Stuknij mapę, by przesunąć swoją pozycję (symulacja jazdy w terenie)</p>
+    <div class="pos-readout">
+      <span>📍 ${state.playerLatLng[0].toFixed(6)}, ${state.playerLatLng[1].toFixed(6)}</span>
+      ${state.playerAccuracy ? `<span class="acc">±${Math.round(state.playerAccuracy)} m</span>` : ''}
+    </div>
+    <div class="hint-box"><b>WSKAZÓWKA W TERENIE</b>${p.hint}</div>
+    <button class="scan-btn ${state.scanning?'scanning':''}" id="scan-btn" ${state.scanning?'disabled':''}>
+      ${state.scanning ? 'Skanowanie…' : (discovered ? 'Zeskanuj ponownie (symulacja)' : 'Skanuj kod QR (symulacja)')}
+    </button>
+    <div id="feedback-slot"></div>
+    <div class="test-panel">
+      <p class="eyebrow" style="margin-bottom:8px;">TEST W TERENIE — PRAWDZIWY GPS I KAMERA</p>
+      <button class="test-btn" id="gps-btn">📍 Użyj mojej prawdziwej lokalizacji GPS</button>
+      <p class="modal-note" style="margin:-4px 0 10px;">Jeśli przycisk zwraca błąd (typowe przy pliku otwartym z dysku — GPS wymaga https), wpisz współrzędne ręcznie, np. z Google Maps (przytrzymaj palec na swojej pozycji).</p>
+      <div class="manual-geo">
+        <input type="text" id="manual-latlng" placeholder="51.9530, 16.2870" />
+        <button id="manual-btn">Ustaw</button>
+      </div>
+      <button class="test-btn" id="camera-btn">📷 Skanuj kamerą telefonu (prawdziwy kod)</button>
+      <button class="test-btn ghost" id="qr-btn">🔳 Pokaż kod QR tego punktu (do wydruku)</button>
+    </div>
+  `;
+
+  const map = L.map('point-map', { zoomControl:true, scrollWheelZoom:false }).setView([p.lat,p.lng], pointZoom);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap contributors', maxZoom:18 }).addTo(map);
+  // Tylko przybliżona strefa jest widoczna — dokładny punkt celowo nie jest oznaczony pinezką.
+  L.circle([p.lat,p.lng], { radius:p.hintR, color:CATS[p.cat].color, weight:2, dashArray:'5,6', fillOpacity:0.07 }).addTo(map);
+
+  const youMarker = L.marker(state.playerLatLng, { icon: youDivIcon() }).addTo(map);
+  map.on('click', (e)=>{
+    state.playerLatLng=[e.latlng.lat, e.latlng.lng];
+    state.playerAccuracy=null;
+    youMarker.setLatLng(e.latlng);
+    const readout=document.querySelector('.pos-readout');
+    if(readout) readout.innerHTML = `<span>📍 ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}</span>`;
+  });
+
+  document.getElementById('scan-btn').addEventListener('click', ()=>attemptScan(p));
+  document.getElementById('gps-btn').addEventListener('click', ()=>useRealGps(p));
+  document.getElementById('camera-btn').addEventListener('click', ()=>openCameraModal(p));
+  document.getElementById('qr-btn').addEventListener('click', ()=>openQrModal(p));
+  document.getElementById('manual-btn').addEventListener('click', ()=>useManualLatLng(p));
+}
+
+function attemptScan(p){
+  if(state.scanning) return;
+  state.scanning=true; render();
+  setTimeout(()=>{
+    state.scanning=false;
+    const you = L.latLng(state.playerLatLng[0], state.playerLatLng[1]);
+    const target = L.latLng(p.lat, p.lng);
+    const d = you.distanceTo(target); // metry — prawdziwa odległość (wzór haversine) przez Leaflet
+    renderPointScreen(document.getElementById('screen'));
+    const slot=document.getElementById('feedback-slot');
+    if(d<=SCAN_TOLERANCE_METERS){
+      state.discovered[p.id] = { status: state.isOffline ? 'pending' : 'synced' };
+      if(state.isOffline) state.pendingQueue.push(p.id);
+      delete state.lastAttempt[p.id];
+      slot.innerHTML = `<div class="feedback ok"><strong>Zdobyto: ${p.name}!</strong><br>
+        ${state.isOffline ? 'Brak zasięgu — zaliczenie zapisano lokalnie i czeka w kolejce do synchronizacji.' : 'Osiągnięcie zweryfikowane i zsynchronizowane z Twoim profilem.'}</div>`;
+      showToast(state.isOffline ? 'Zapisano offline — czeka na synchronizację' : 'Zsynchronizowano z profilem ✓');
+    } else {
+      const prev = state.lastAttempt[p.id];
+      let warmCold='';
+      if(prev!==undefined) warmCold = d < prev ? 'Cieplej niż poprzednio.' : 'Zimniej niż poprzednio — spróbuj w innym miejscu.';
+      state.lastAttempt[p.id]=d;
+      slot.innerHTML = `<div class="feedback no">Nie udało się zweryfikować lokalizacji — jesteś za daleko od dokładnego miejsca.
+        ${warmCold ? `<span class="warm">${warmCold}</span>` : ''}</div>`;
+    }
+  }, 900);
+}
+
+/* ============================= REAL-WORLD TEST: GPS, QR GENERATION, CAMERA SCAN ============================= */
+function useRealGps(p){
+  if(!navigator.geolocation){ showToast('Ta przeglądarka nie obsługuje geolokalizacji.'); return; }
+  showToast('Pobieranie prawdziwej lokalizacji GPS…');
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      state.playerLatLng=[pos.coords.latitude, pos.coords.longitude];
+      state.playerAccuracy=pos.coords.accuracy;
+      showToast(`Pobrano lokalizację (dokładność ±${Math.round(pos.coords.accuracy)} m)`);
+      renderPointScreen(document.getElementById('screen'));
+    },
+    ()=>{ showToast('GPS zablokowane przez przeglądarkę — pliki otwarte z dysku (file://) nie są traktowane jako bezpieczne źródło. Użyj pola "Ustaw współrzędne ręcznie" poniżej.', 5000); },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+}
+
+function useManualLatLng(p){
+  const input=document.getElementById('manual-latlng');
+  const raw=input.value.trim();
+  const parts=raw.split(/[,;\s]+/).map(Number);
+  if(parts.length!==2 || parts.some(n=>Number.isNaN(n))){
+    showToast('Nie rozpoznano współrzędnych — wpisz w formacie: 51.9530, 16.2870');
+    return;
+  }
+  state.playerLatLng=[parts[0], parts[1]];
+  state.playerAccuracy=null;
+  showToast('Ustawiono pozycję ręcznie ✓');
+  renderPointScreen(document.getElementById('screen'));
+}
+
+function openModal(html){
+  const root=document.getElementById('modal-root');
+  root.innerHTML = `<div class="modal-card">${html}</div>`;
+  root.classList.add('show');
+}
+function closeModal(){
+  const root=document.getElementById('modal-root');
+  root.classList.remove('show');
+  root.innerHTML='';
+  stopCamera();
+}
+
+function openQrModal(p){
+  openModal(`
+    <h3>Naklejka QR — ${p.name}</h3>
+    <div id="qr-render-target"></div>
+    <p class="modal-note">Token: <b style="font-family:'IBM Plex Mono',monospace;">${p.qrToken}</b><br>
+    Wydrukuj lub wyświetl ten kod w docelowym miejscu, a następnie zeskanuj go kamerą telefonu z poziomu aplikacji.</p>
+    <button class="modal-close" data-action="closeModal">Zamknij</button>
+  `);
+  const target=document.getElementById('qr-render-target');
+  if(typeof QRCode !== 'undefined'){
+    new QRCode(target, { text:p.qrToken, width:180, height:180, colorDark:'#22301F', colorLight:'#ffffff' });
+  } else {
+    target.innerHTML = `<p style="font-size:12px;color:var(--ink-soft);padding:10px;">Biblioteka do generowania QR nie wczytała się — skopiuj token powyżej i wygeneruj kod w dowolnym generatorze online.</p>`;
+  }
+}
+
+let cameraStream=null, cameraRAF=null;
+
+function openCameraModal(p){
+  openModal(`
+    <h3>Skanowanie kamerą</h3>
+    <div class="camera-wrap"><video id="scan-video" autoplay playsinline muted></video><div class="camera-frame"></div></div>
+    <p class="modal-note" id="camera-status">Uruchamianie kamery…</p>
+    <button class="modal-close" data-action="closeModal">Anuluj</button>
+  `);
+  startCamera(p);
+}
+
+function startCamera(p){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    const status=document.getElementById('camera-status');
+    if(status) status.textContent='Ta przeglądarka nie obsługuje dostępu do kamery.';
+    return;
+  }
+  const decodeAvailable = (typeof jsQR !== 'undefined');
+  navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } }).then(stream=>{
+    cameraStream=stream;
+    const video=document.getElementById('scan-video');
+    if(!video){ stopCamera(); return; }
+    video.srcObject=stream;
+    const status=document.getElementById('camera-status');
+    if(!decodeAvailable){
+      if(status) status.textContent='Kamera działa, ale biblioteka do odczytu kodu się nie wczytała — zamknij i użyj przycisku "Skanuj kod QR (symulacja)".';
+      return;
+    }
+    if(status) status.textContent='Wyceluj w kod QR…';
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    function tick(){
+      if(!cameraStream) return;
+      const vid=document.getElementById('scan-video');
+      if(!vid){ stopCamera(); return; }
+      if(vid.readyState===vid.HAVE_ENOUGH_DATA){
+        canvas.width=vid.videoWidth; canvas.height=vid.videoHeight;
+        ctx.drawImage(vid,0,0,canvas.width,canvas.height);
+        const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=jsQR(imgData.data, imgData.width, imgData.height);
+        if(code && code.data){
+          const scannedToken=code.data;
+          stopCamera(); closeModal();
+          if(scannedToken===p.qrToken){ attemptScan(p); }
+          else { showToast('Zeskanowany kod nie pasuje do tego punktu.'); }
+          return;
+        }
+      }
+      cameraRAF=requestAnimationFrame(tick);
+    }
+    cameraRAF=requestAnimationFrame(tick);
+  }).catch((err)=>{
+    const status=document.getElementById('camera-status');
+    if(status){
+      status.textContent = err && err.name==='NotAllowedError'
+        ? 'Odmówiono dostępu do kamery. Sprawdź ustawienia uprawnień strony w przeglądarce i spróbuj ponownie.'
+        : 'Nie udało się uruchomić kamery: '+(err && err.message ? err.message : 'nieznany błąd')+'.';
+    }
+  });
+}
+
+function stopCamera(){
+  if(cameraRAF) cancelAnimationFrame(cameraRAF);
+  cameraRAF=null;
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream=null; }
+}
+
+/* ============================= RENDER: PROFILE ============================= */
+function renderProfile(el){
+  const total=allPoints().length;
+  const synced=Object.values(state.discovered).filter(d=>d.status==='synced').length;
+  const pending=state.pendingQueue.length;
+  const collectionDone = AREAS[0].points.every(p=>statusOf(p.id)==='synced');
+
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="n">${synced}</div><div class="l">Zsynchronizowane</div></div>
+      <div class="stat"><div class="n">${pending}</div><div class="l">Oczekujące</div></div>
+      <div class="stat"><div class="n">${total-synced-pending}</div><div class="l">Do odkrycia</div></div>
+    </div>
+    <p class="eyebrow" style="margin-bottom:8px;">Odznaki</p>
+    <div class="badge-grid">
+      <div class="badge ${collectionDone?'':'locked'}"><div class="icn">${collectionDone?'🏅':'🔒'}</div><div class="t">Odkrywca: ${AREAS[0].name}</div></div>
+    </div>
+    <p class="eyebrow" style="margin-bottom:8px;">Kolejka synchronizacji</p>
+    ${pending===0
+      ? `<div class="empty">Brak oczekujących zaliczeń — wszystko zsynchronizowane.</div>`
+      : state.pendingQueue.map(id=>{ const p=allPoints().find(x=>x.id===id); return `<div class="queue-item">${p.name}<span class="tag pending">oczekuje</span></div>`; }).join('')
+    }
+    <button class="sync-btn" id="sync-btn" ${pending===0 || state.isOffline ? 'disabled':''}>
+      ${state.isOffline ? 'Włącz połączenie, by zsynchronizować' : 'Synchronizuj teraz'}
+    </button>
+  `;
+  const btn=document.getElementById('sync-btn');
+  if(btn) btn.addEventListener('click', doSync);
+}
+
+function doSync(){
+  if(state.pendingQueue.length===0 || state.isOffline) return;
+  const n=state.pendingQueue.length;
+  state.pendingQueue.forEach(id=>{ state.discovered[id]={status:'synced'}; });
+  state.pendingQueue=[];
+  showToast(`Zsynchronizowano ${n} zaległ${n===1?'e zaliczenie':'ych zaliczeń'} ✓`);
+  render();
+}
+
+/* ============================= ACTIONS ============================= */
+document.addEventListener('click', (e)=>{
+  const t=e.target.closest('[data-action]');
+  if(!t) return;
+  const act=t.dataset.action;
+  if(act==='openPoint'){ go('point', {pointId:t.dataset.point}); }
+  else if(act==='goArea'){ go('area', {filter:'all'}); }
+  else if(act==='goProfile'){ go('profile'); }
+  else if(act==='setFilter'){ state.filter=t.dataset.filter; renderAreaScreen(document.getElementById('screen')); }
+  else if(act==='closeModal'){ closeModal(); }
+  else if(act==='toggleOffline'){
+    state.isOffline=!state.isOffline; render();
+    if(!state.isOffline && state.pendingQueue.length>0){ showToast('Połączono z internetem — synchronizowanie…'); setTimeout(doSync, 700); }
+    else if(state.isOffline){ showToast('Symulacja trybu offline włączona'); }
+  }
+});
+
+function tickClock(){
+  const d=new Date();
+  document.getElementById('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+tickClock(); setInterval(tickClock, 15000);
+
+render();
+</script>
+</body>
+</html>
