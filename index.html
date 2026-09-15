@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wschowa Explore — prototyp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --paper: #EDE7D2;
+    --paper-dark: #E2DAC0;
+    --ink: #22301F;
+    --ink-soft: #4B5A45;
+    --pine: #2F5D42;
+    --amber: #C97A2B;
+    --stone: #8B6F47;
+    --line: rgba(34,48,31,0.14);
+    --success: #2F7D4F;
+    --danger: #A64B3C;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'IBM Plex Sans', sans-serif;
+    background: radial-gradient(ellipse at 30% 0%, #24392C 0%, #14231C 55%, #0E1A14 100%);
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:28px 12px; color: var(--ink);
+  }
+  .rig{ display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .rig-label{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.04em; color: rgba(237,231,210,0.55); }
+  .phone{
+    width:390px; height:780px; background: var(--paper);
+    border-radius:44px; border: 8px solid #0E1A14;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+    position:relative; overflow:hidden; display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:8px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:#0E1A14; border-radius:14px; z-index:50; }
+  .topbar{ height:44px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:'IBM Plex Mono', monospace; font-size:11px; color: var(--ink-soft); }
+  .header{ flex:0 0 auto; padding:2px 20px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); }
+  .header .backbtn{ width:32px;height:32px;border-radius:50%; display:flex;align-items:center;justify-content:center; background:rgba(34,48,31,0.06); cursor:pointer; flex:0 0 auto; }
+  .header .backbtn svg{width:16px;height:16px;}
+  .header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:19px; margin:0; line-height:1.2; flex:1; }
+  .status-pill{ font-family:'IBM Plex Mono', monospace; font-size:10px; padding:5px 9px; border-radius:20px; display:flex; align-items:center; gap:5px; cursor:pointer; flex:0 0 auto; border:1px solid var(--line); white-space:nowrap; }
+  .status-pill .dot{width:6px;height:6px;border-radius:50%;}
+  .status-pill.online{color:var(--pine);} .status-pill.online .dot{background:var(--pine);}
+  .status-pill.offline{color:var(--danger);} .status-pill.offline .dot{background:var(--danger);}
+
+  .screen{ flex:1 1 auto; overflow-y:auto; padding:18px 20px 100px; }
+  .screen::-webkit-scrollbar{width:0;}
+
+  .tabbar{ position:absolute; bottom:0; left:0; right:0; height:74px; background: var(--paper); border-top:1px solid var(--line); display:flex; padding-bottom:14px; z-index:40; }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; color: var(--ink-soft); font-size:11px; font-weight:500; }
+  .tab svg{width:20px;height:20px;}
+  .tab.active{color:var(--pine);}
+
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); }
+  .lede{ font-family:'Fraunces', serif; font-weight:600; font-size:24px; line-height:1.15; margin:6px 0 4px; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
+
+  .home-progress{ display:flex; align-items:center; gap:10px; background:var(--paper-dark); border-radius:14px; padding:12px 14px; margin:16px 0 18px; }
+  .home-progress .num{ font-family:'Fraunces', serif; font-weight:600; font-size:22px; color:var(--pine); }
+  .home-progress .bar{ flex:1; height:6px; border-radius:6px; background:rgba(34,48,31,0.12); overflow:hidden; }
+  .home-progress .bar span{ display:block; height:100%; background:var(--pine); }
+
+  .chiprow{ display:flex; gap:8px; overflow-x:auto; margin:14px 0 16px; padding-bottom:2px;}
+  .chip{ font-size:12px; font-weight:500; padding:7px 13px; border-radius:20px; border:1px solid var(--line); white-space:nowrap; cursor:pointer; color:var(--ink-soft); flex:0 0 auto; }
+  .chip.active{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+
+  .map-wrap{ border-radius:18px; overflow:hidden; border:1px solid var(--line); margin-bottom:6px; background:var(--paper-dark); }
+  .map-hint-text{ font-size:11.5px; color:var(--ink-soft); text-align:center; margin-top:8px; }
+  .leaflet-container{ font-family:'IBM Plex Sans', sans-serif; background:var(--paper-dark) !important; }
+  .pos-readout{ display:flex; align-items:center; gap:8px; background:var(--paper-dark); border-radius:12px; padding:10px 13px; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink); }
+  .pos-readout .acc{ color:var(--ink-soft); font-size:10.5px; margin-left:auto; }
+
+  .point-card{ display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:14px; margin-bottom:9px; border:1px solid var(--line); cursor:pointer; background:var(--paper); }
+  .cat-icon{ width:36px; height:36px; border-radius:10px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff; }
+  .cat-icon svg{ width:18px; height:18px; }
+  .point-card .name{ font-weight:600; font-size:14px; margin:0 0 2px; }
+  .point-card .cat-label{ font-size:11px; color:var(--ink-soft); }
+  .point-card .check{ margin-left:auto; flex:0 0 auto; }
+
+  .hint-box{ background:var(--paper-dark); border-radius:14px; padding:14px; font-size:13.5px; line-height:1.55; margin:14px 0; color:var(--ink); }
+  .hint-box b{ display:block; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.03em; color:var(--ink-soft); margin-bottom:5px; }
+  .scan-btn{ width:100%; padding:15px; border-radius:14px; border:none; cursor:pointer; background:var(--ink); color:var(--paper); font-weight:600; font-size:14.5px; font-family:'IBM Plex Sans', sans-serif; margin-top:8px; }
+  .scan-btn.scanning{ background:var(--stone); }
+  .scan-btn:disabled{ opacity:0.6; cursor:default; }
+  .feedback{ margin-top:12px; padding:13px 14px; border-radius:12px; font-size:13px; line-height:1.5; }
+  .feedback.ok{ background:rgba(47,125,79,0.12); color:var(--success); }
+  .feedback.no{ background:rgba(166,75,60,0.1); color:var(--danger); }
+  .feedback .warm{ display:block; margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; opacity:0.8; }
+
+  .stat-grid{ display:flex; gap:10px; margin:14px 0 20px; }
+  .stat{ flex:1; background:var(--paper-dark); border-radius:14px; padding:13px; text-align:center; }
+  .stat .n{ font-family:'Fraunces', serif; font-weight:600; font-size:22px; color:var(--pine); }
+  .stat .l{ font-size:10.5px; color:var(--ink-soft); margin-top:2px; }
+
+  .badge-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:20px; }
+  .badge{ border-radius:14px; padding:14px; text-align:center; border:1px solid var(--line); background:var(--paper-dark); }
+  .badge.locked{ opacity:0.4; }
+  .badge .icn{ font-size:22px; margin-bottom:6px; }
+  .badge .t{ font-size:11.5px; font-weight:600; line-height:1.3; }
+
+  .queue-item{ display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:12px; background:var(--paper-dark); margin-bottom:8px; font-size:12.5px; }
+  .queue-item .tag{ font-family:'IBM Plex Mono', monospace; font-size:10px; padding:3px 8px; border-radius:20px; margin-left:auto; }
+  .tag.pending{ background:rgba(201,122,43,0.18); color:var(--amber); }
+  .sync-btn{ width:100%; padding:13px; border-radius:12px; border:1px solid var(--pine); background:transparent; color:var(--pine); font-weight:600; font-size:13.5px; cursor:pointer; margin-top:6px; }
+  .sync-btn:disabled{ opacity:0.35; cursor:default; }
+  .empty{ text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px; }
+
+  .test-panel{ margin-top:18px; padding-top:16px; border-top:1px dashed var(--line); }
+  .test-btn{ width:100%; padding:13px; border-radius:12px; border:1px solid var(--amber); background:rgba(201,122,43,0.08); color:var(--amber); font-weight:600; font-size:13px; cursor:pointer; margin-bottom:9px; font-family:'IBM Plex Sans', sans-serif; }
+  .test-btn.ghost{ background:transparent; color:var(--ink-soft); border-color:var(--line); }
+  .manual-geo{ display:flex; gap:8px; margin-bottom:9px; }
+  .manual-geo input{ flex:1; padding:12px 13px; border-radius:12px; border:1px solid var(--line); font-family:'IBM Plex Mono', monospace; font-size:12.5px; background:var(--paper); color:var(--ink); }
+  .manual-geo button{ flex:0 0 auto; padding:0 16px; border-radius:12px; border:1px solid var(--pine); background:var(--pine); color:var(--paper); font-weight:600; font-size:12.5px; cursor:pointer; font-family:'IBM Plex Sans', sans-serif; }
+
+  .modal-overlay{ position:absolute; inset:0; z-index:80; background:rgba(14,26,20,0.92); display:none; align-items:center; justify-content:center; padding:26px; }
+  .modal-overlay.show{ display:flex; }
+  .modal-card{ background:var(--paper); border-radius:20px; padding:22px; width:100%; max-width:300px; text-align:center; }
+  .modal-card h3{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; margin:0 0 4px; }
+  .modal-note{ font-size:11.5px; color:var(--ink-soft); line-height:1.55; margin-top:8px; }
+  .modal-close{ margin-top:14px; padding:11px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink); font-weight:600; cursor:pointer; width:100%; font-family:'IBM Plex Sans', sans-serif; }
+  #qr-render-target{ background:#fff; padding:14px; border-radius:12px; display:inline-block; margin:10px 0; }
+  .camera-wrap{ position:relative; width:100%; aspect-ratio:1/1; border-radius:14px; overflow:hidden; background:#000; margin:10px 0; }
+  .camera-wrap video{ width:100%; height:100%; object-fit:cover; }
+  .camera-frame{ position:absolute; inset:15%; border:3px solid rgba(255,255,255,0.85); border-radius:16px; pointer-events:none; }
+
+  /* ---- admin panel ---- */
+  .admin-link{ display:block; text-align:center; font-size:12px; color:var(--ink-soft); margin-top:26px; padding:10px; cursor:pointer; text-decoration:underline; text-decoration-style:dotted; }
+  .admin-badge{ display:inline-block; font-family:'IBM Plex Mono', monospace; font-size:9.5px; padding:2px 8px; border-radius:20px; background:var(--pine); color:#fff; margin-bottom:8px; }
+  .admin-tabs{ display:flex; gap:8px; margin-bottom:16px; }
+  .admin-tab{ flex:1; text-align:center; padding:9px; border-radius:10px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--line); color:var(--ink-soft); }
+  .admin-tab.active{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .admin-row{ display:flex; align-items:center; gap:10px; padding:12px 13px; border-radius:12px; border:1px solid var(--line); background:var(--paper-dark); margin-bottom:8px; }
+  .admin-row .swatch{ width:16px; height:16px; border-radius:50%; flex:0 0 auto; }
+  .admin-row .info{ flex:1; min-width:0; }
+  .admin-row .info .t1{ font-weight:600; font-size:13px; }
+  .admin-row .info .t2{ font-size:11px; color:var(--ink-soft); font-family:'IBM Plex Mono', monospace; }
+  .admin-row .acts{ display:flex; gap:6px; flex:0 0 auto; }
+  .icon-btn{ width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--paper); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .icon-btn svg{ width:14px; height:14px; }
+  .icon-btn.danger{ border-color:rgba(166,75,60,0.4); }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:5px; }
+  .field input, .field select, .field textarea{
+    width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--line);
+    background:var(--paper); color:var(--ink); font-family:'IBM Plex Sans', sans-serif; font-size:13px;
+  }
+  .field textarea{ min-height:64px; resize:vertical; font-family:'IBM Plex Sans', sans-serif; }
+  .field input[type=color]{ padding:4px; height:40px; }
+  .field-row{ display:flex; gap:10px; }
+  .field-row .field{ flex:1; }
+  .primary-btn{ width:100%; padding:13px; border-radius:12px; border:none; background:var(--pine); color:var(--paper); font-weight:600; font-size:13.5px; cursor:pointer; margin-top:4px; }
+  .ghost-btn{ width:100%; padding:12px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); font-weight:600; font-size:13px; cursor:pointer; margin-top:8px; }
+  .admin-form{ background:var(--paper-dark); border-radius:16px; padding:16px; margin-bottom:18px; }
+  .admin-form h4{ font-family:'Fraunces', serif; font-size:15px; margin:0 0 12px; }
+  .export-box{ width:100%; min-height:220px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; padding:12px; border-radius:12px; border:1px solid var(--line); background:var(--paper-dark); color:var(--ink); }
+  .danger-zone{ margin-top:26px; padding-top:16px; border-top:1px dashed var(--line); }
+
+  @media (max-width:460px){
+    body{ padding:0; background:var(--paper); }
+    .rig-label{ display:none; }
+    .phone{ width:100vw; height:100vh; border-radius:0; border:none; box-shadow:none; }
+    .notch{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="rig">
+  <div class="rig-label">PROTOTYP — WSCHOWA EXPLORE · Przemęcki Park Krajobrazowy</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="topbar">
+      <span id="clock">09:41</span>
+      <span id="status-pill-slot"></span>
+    </div>
+    <div class="header" id="header"></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+    <div class="tabbar" id="tabbar"></div>
+    <div class="modal-overlay" id="modal-root"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================================
+   KATEGORIE ATRAKCJI (wartości domyślne — patrz uwaga o panelu admina niżej)
+================================================================================ */
+const DEFAULT_CATS = {
+  przyroda: { label:'Przyroda', color:'#3F7D52' },
+  zabytki:  { label:'Zabytki', color:'#8B6F47' },
+  biznes:   { label:'Lokalny biznes', color:'#C97A2B' },
+  eventy:   { label:'Eventy sezonowe', color:'#7A4569' }
+};
+
+function icon(cat){
+  switch(cat){
+    case 'przyroda': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21c-4-2-7-6-7-11a7 7 0 0114 0c0 5-3 9-7 11z"/><path d="M12 21V9"/></svg>';
+    case 'zabytki': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21h16M5 21V10M19 21V10M3 10l9-6 9 6M8 10v11M12 10v11M16 10v11"/></svg>';
+    case 'biznes': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l1.5-5h15L21 9M4 9h16v11H4zM4 9a3 3 0 006 0M10 9a3 3 0 006 0M16 9a3 3 0 006 0"/></svg>';
+    case 'eventy': return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    default: return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/></svg>';
+  }
+}
+
+/* ================================================================================
+   GŁÓWNE DANE TREŚCI — WARTOŚCI DOMYŚLNE (edytuj tutaj ręcznie, ALBO użyj panelu
+   admina w aplikacji: Profil → "Panel administratora"). Ważne: panel admina zapisuje
+   zmiany w localStorage TWOJEJ przeglądarki — żeby zmiany zobaczyli wszyscy
+   odwiedzający, w panelu kliknij "Eksportuj jako kod" i wklej wynik tutaj, w miejsce
+   poniższej tablicy, a potem wgraj nowy plik na hosting.
+
+   POLA OBSZARU: id, name, tagline, distance, center [lat,lng], zoom
+   POLA PUNKTU: id, cat, name, hint, lat, lng, hintR (metry), qrToken
+   Szczegółowy opis każdego pola — patrz poprzednia wersja komentarzy w tym pliku
+   albo sekcja "Dodaj punkt" w panelu admina, gdzie każde pole ma podpis.
+================================================================================ */
+const DEFAULT_AREAS = [
+  {
+    id:'przemecki',
+    name:'Przemęcki Park Krajobrazowy',
+    tagline:'Jeziora polodowcowe, sosnowe bory i wydmy śródlądowe',
+    distance:'~20 km od Wschowy',
+    center:[51.9500, 16.3000],
+    zoom:12,
+    points:[
+       {
+        "id": "pk1",
+        "cat": "przyroda",
+        "name": "Jezioro Dominickie",
+        "hint": "Zejdź ścieżką przy starym pomoście rybackim po zachodniej stronie jeziora, tam gdzie sosny podchodzą najbliżej wody.",
+        "lat": 51.953,
+        "lng": 16.287,
+        "hintR": 220,
+        "qrToken": "WSCHOWA-EXPLORE::PRZEMECKI::PK1"
+      },
+      {
+        "id": "pk2",
+        "cat": "zabytki",
+        "name": "Przydrożna kapliczka",
+        "hint": "Szukaj przy skrzyżowaniu starego traktu z drogą do młyna, niedaleko lipowej alei.",
+        "lat": 51.944,
+        "lng": 16.311,
+        "hintR": 160,
+        "qrToken": "WSCHOWA-EXPLORE::PRZEMECKI::PK2"
+      },
+      {
+        "id": "pk3",
+        "cat": "biznes",
+        "name": "Pasieka Miodowy Zakątek",
+        "hint": "Drewniana chata z ulami ustawionymi rzędem, tuż przy granicy lasu.",
+        "lat": 51.956,
+        "lng": 16.305,
+        "hintR": 180,
+        "qrToken": "WSCHOWA-EXPLORE::PRZEMECKI::PK3"
+      },
+      {
+        "id": "pk4",
+        "cat": "eventy",
+        "name": "Piknik nad wodą (cze–sie)",
+        "hint": "Polana z pomostem, gdzie latem organizowane są wieczorne ogniska.",
+        "lat": 51.948,
+        "lng": 16.32,
+        "hintR": 200,
+        "qrToken": "WSCHOWA-EXPLORE::PRZEMECKI::PK4"
+      },
+      {
+        "id": "pk5",
+        "cat": "przyroda",
+        "name": "Jezioro Lgińsko",
+        "hint": "Najpopularniejsze jezioro w Gminie Wschowa",
+        "lat": 51.8040404,
+        "lng": 16.316002,
+        "hintR": 200,
+        "qrToken": "WSCHOWA-EXPLORE::PRZEMECKI::PK5"
+      }
+    ]
+  }
+];
+
+const SCAN_TOLERANCE_METERS = 60;
+const ADMIN_STORAGE_KEY = 'wschowa-explore-admin-data-v1';
+
+/* Dane robocze — to na nich operuje cała aplikacja. Zaczynają jako kopia wartości
+   domyślnych, po czym ewentualnie nadpisywane są zapisem z localStorage. */
+let AREAS = JSON.parse(JSON.stringify(DEFAULT_AREAS));
+let CATS = JSON.parse(JSON.stringify(DEFAULT_CATS));
+
+function loadAdminData(){
+  try{
+    const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    if(parsed && parsed.areas && parsed.cats){
+      AREAS = parsed.areas;
+      CATS = parsed.cats;
+    }
+  }catch(e){ console.warn('Nie udało się wczytać danych admina z localStorage', e); }
+}
+function saveAdminData(){
+  try{
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify({ areas:AREAS, cats:CATS }));
+  }catch(e){ showToast('Nie udało się zapisać zmian lokalnie: '+e.message, 4000); }
+}
+loadAdminData();
+
+/* ============================= STATE ============================= */
+const state = {
+  screen:'area', areaId: AREAS[0] ? AREAS[0].id : null, pointId:null, filter:'all',
+  isOffline:false,
+  discovered:{}, pendingQueue:[], lastAttempt:{},
+  scanning:false, playerLatLng:null, playerAccuracy:null,
+  adminTab:'points', editingPointId:null, editingCatId:null
+};
+
+function allPoints(){ return AREAS.flatMap(a=>a.points.map(p=>({...p, areaId:a.id}))); }
+function getArea(id){ return AREAS.find(a=>a.id===id); }
+function getPoint(areaId,pointId){ return getArea(areaId).points.find(p=>p.id===pointId); }
+function isDiscovered(id){ return !!state.discovered[id]; }
+function statusOf(id){ return state.discovered[id]?.status; }
+function slugify(s){ return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+
+/* ============================= GEO HELPERS ============================= */
+function destPoint(lat,lng,distM,bearingDeg){
+  const R=6371000, brng=bearingDeg*Math.PI/180;
+  const lat1=lat*Math.PI/180, lng1=lng*Math.PI/180;
+  const lat2=Math.asin(Math.sin(lat1)*Math.cos(distM/R)+Math.cos(lat1)*Math.sin(distM/R)*Math.cos(brng));
+  const lng2=lng1+Math.atan2(Math.sin(brng)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+  return [lat2*180/Math.PI, lng2*180/Math.PI];
+}
+
+function showToast(msg, ms=2400){
+  const t=document.getElementById('toast');
+  if(!t) return;
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t=setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+function go(screen, extra={}){
+  Object.assign(state, {screen}, extra);
+  if(screen==='point'){
+    const p = getPoint(state.areaId, state.pointId);
+    const bearing = Math.random()*360;
+    const dist = p.hintR + 70 + Math.random()*60;
+    state.playerLatLng = destPoint(p.lat, p.lng, dist, bearing);
+    state.playerAccuracy = null;
+  }
+  render();
+}
+
+/* ============================= RENDER: SHELL ============================= */
+function render(){
+  renderStatusPill(); renderHeader(); renderTabbar();
+  const el = document.getElementById('screen');
+  el.innerHTML='';
+  if(state.screen==='area') renderAreaScreen(el);
+  else if(state.screen==='point') renderPointScreen(el);
+  else if(state.screen==='profile') renderProfile(el);
+  else if(state.screen==='admin') renderAdmin(el);
+  el.scrollTop=0;
+}
+
+function renderStatusPill(){
+  const slot=document.getElementById('status-pill-slot');
+  slot.innerHTML = `<span class="status-pill ${state.isOffline?'offline':'online'}" data-action="toggleOffline">
+      <span class="dot"></span>${state.isOffline?'Offline (symulacja)':'Online'}
+    </span>`;
+}
+
+function renderHeader(){
+  const h=document.getElementById('header');
+  if(state.screen==='area'){ h.innerHTML = `<h1>Wschowa Explore</h1>`; }
+  else if(state.screen==='point'){ const p=getPoint(state.areaId,state.pointId); h.innerHTML = `<div class="backbtn" data-action="goArea">${backIcon()}</div><h1>${p.name}</h1>`; }
+  else if(state.screen==='profile'){ h.innerHTML = `<h1>Twoje postępy</h1>`; }
+  else if(state.screen==='admin'){ h.innerHTML = `<div class="backbtn" data-action="goProfile">${backIcon()}</div><h1>Panel administratora</h1>`; }
+}
+
+function backIcon(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22301F" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>'; }
+
+function renderTabbar(){
+  const t=document.getElementById('tabbar');
+  t.innerHTML = `
+    <div class="tab ${state.screen==='area'||state.screen==='point'?'active':''}" data-action="goArea">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      Odkrywaj
+    </div>
+    <div class="tab ${state.screen==='profile'||state.screen==='admin'?'active':''}" data-action="goProfile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-5 6-6 8-6s6.5 1 8 6"/></svg>
+      Profil
+    </div>`;
+}
+
+function catDivIcon(color, discovered){
+  return L.divIcon({
+    className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:${discovered?'0 0 0 3px rgba(47,125,79,0.35)':'0 1px 3px rgba(0,0,0,0.4)'};"></div>`,
+    iconSize:[16,16], iconAnchor:[8,8]
+  });
+}
+function youDivIcon(){
+  return L.divIcon({
+    className:'', html:`<div style="width:22px;height:22px;border-radius:50%;background:rgba(34,48,31,0.18);display:flex;align-items:center;justify-content:center;"><div style="width:11px;height:11px;border-radius:50%;background:#22301F;border:2px solid #EDE7D2;"></div></div>`,
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+}
+
+/* ============================= RENDER: AREA (ekran startowy) ============================= */
+function renderAreaScreen(el){
+  const a=getArea(state.areaId);
+  if(!a){ el.innerHTML = `<div class="empty">Brak obszarów. Dodaj punkty w panelu administratora.</div>`; return; }
+  const total=a.points.length;
+  const found=a.points.filter(p=>isDiscovered(p.id)).length;
+  const cats=['all',...new Set(a.points.map(p=>p.cat))];
+  const pts=a.points.filter(p=> state.filter==='all' || p.cat===state.filter);
+
+  el.innerHTML = `
+    <p class="eyebrow">${a.distance}</p>
+    <p class="lede">${a.name}</p>
+    <p class="sub">${a.tagline}</p>
+    <div class="home-progress">
+      <div class="num">${found}/${total}</div>
+      <div class="bar"><span style="width:${total?(found/total*100).toFixed(0):0}%"></span></div>
+    </div>
+    <div class="map-wrap"><div id="area-map" style="height:200px;"></div></div>
+    <p class="map-hint-text">Przybliżone strefy punktów na prawdziwej mapie — dokładną lokalizację znajdziesz w terenie</p>
+    <div class="chiprow">
+      ${cats.map(c=>`<div class="chip ${state.filter===c?'active':''}" data-action="setFilter" data-filter="${c}">${c==='all'?'Wszystkie':(CATS[c]?CATS[c].label:c)}</div>`).join('')}
+    </div>
+    ${pts.length ? pts.map(p=>`
+      <div class="point-card" data-action="openPoint" data-point="${p.id}">
+        <div class="cat-icon" style="background:${CATS[p.cat]?CATS[p.cat].color:'#888'}">${icon(p.cat)}</div>
+        <div><p class="name">${p.name}</p><p class="cat-label">${CATS[p.cat]?CATS[p.cat].label:p.cat}</p></div>
+        <div class="check">${checkBadge(p.id)}</div>
+      </div>
+    `).join('') : `<div class="empty">Brak punktów w tej kategorii.</div>`}
+    <div class="admin-link" data-action="goAdmin">⚙️ Panel administratora (edycja punktów i kategorii)</div>
+  `;
+
+  if(!a.points.length) return;
+  const map = L.map('area-map', { zoomControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false, boxZoom:false, keyboard:false, tap:false })
+    .setView(a.center, a.zoom);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap contributors', maxZoom:18 }).addTo(map);
+  a.points.forEach(p=>{
+    const color = CATS[p.cat] ? CATS[p.cat].color : '#888';
+    L.circle([p.lat,p.lng], { radius:p.hintR, color, weight:2, dashArray:'4,5', fillOpacity:0.08 }).addTo(map);
+    L.marker([p.lat,p.lng], { icon: catDivIcon(color, isDiscovered(p.id)) })
+      .addTo(map).on('click', ()=>go('point', {pointId:p.id}));
+  });
+}
+
+function checkBadge(pointId){
+  const s=statusOf(pointId);
+  if(s==='synced') return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>';
+  if(s==='pending') return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C97A2B" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+  return '';
+}
+
+/* ============================= RENDER: POINT ============================= */
+function renderPointScreen(el){
+  const p=getPoint(state.areaId,state.pointId);
+  const discovered=isDiscovered(p.id);
+  const catColor = CATS[p.cat] ? CATS[p.cat].color : '#888';
+  const catLabel = CATS[p.cat] ? CATS[p.cat].label : p.cat;
+
+  const pointZoom = p.hintR < 100 ? 18 : (p.hintR < 200 ? 15 : 14);
+
+  el.innerHTML = `
+    <div class="cat-icon" style="background:${catColor};margin-bottom:10px;">${icon(p.cat)}</div>
+    <p class="eyebrow">${catLabel}${discovered?' · odkryto':''}</p>
+    <div class="map-wrap"><div id="point-map" style="height:260px;"></div></div>
+    <p class="map-hint-text">Stuknij mapę, by przesunąć swoją pozycję (symulacja jazdy w terenie)</p>
+    <div class="pos-readout">
+      <span>📍 ${state.playerLatLng[0].toFixed(6)}, ${state.playerLatLng[1].toFixed(6)}</span>
+      ${state.playerAccuracy ? `<span class="acc">±${Math.round(state.playerAccuracy)} m</span>` : ''}
+    </div>
+    <div class="hint-box"><b>WSKAZÓWKA W TERENIE</b>${p.hint}</div>
+    <button class="scan-btn ${state.scanning?'scanning':''}" id="scan-btn" ${state.scanning?'disabled':''}>
+      ${state.scanning ? 'Skanowanie…' : (discovered ? 'Zeskanuj ponownie (symulacja)' : 'Skanuj kod QR (symulacja)')}
+    </button>
+    <div id="feedback-slot"></div>
+    <div class="test-panel">
+      <p class="eyebrow" style="margin-bottom:8px;">TEST W TERENIE — PRAWDZIWY GPS I KAMERA</p>
+      <button class="test-btn" id="gps-btn">📍 Użyj mojej prawdziwej lokalizacji GPS</button>
+      <p class="modal-note" style="margin:-4px 0 10px;">Jeśli przycisk zwraca błąd (typowe przy pliku otwartym z dysku — GPS wymaga https), wpisz współrzędne ręcznie, np. z Google Maps (przytrzymaj palec na swojej pozycji).</p>
+      <div class="manual-geo">
+        <input type="text" id="manual-latlng" placeholder="51.9530, 16.2870" />
+        <button id="manual-btn">Ustaw</button>
+      </div>
+      <button class="test-btn" id="camera-btn">📷 Skanuj kamerą telefonu (prawdziwy kod)</button>
+      <button class="test-btn ghost" id="qr-btn">🔳 Pokaż kod QR tego punktu (do wydruku)</button>
+    </div>
+  `;
+
+  const map = L.map('point-map', { zoomControl:true, scrollWheelZoom:false }).setView([p.lat,p.lng], pointZoom);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap contributors', maxZoom:18 }).addTo(map);
+  L.circle([p.lat,p.lng], { radius:p.hintR, color:catColor, weight:2, dashArray:'5,6', fillOpacity:0.07 }).addTo(map);
+
+  const youMarker = L.marker(state.playerLatLng, { icon: youDivIcon() }).addTo(map);
+  map.on('click', (e)=>{
+    state.playerLatLng=[e.latlng.lat, e.latlng.lng];
+    state.playerAccuracy=null;
+    youMarker.setLatLng(e.latlng);
+    const readout=document.querySelector('.pos-readout');
+    if(readout) readout.innerHTML = `<span>📍 ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}</span>`;
+  });
+
+  document.getElementById('scan-btn').addEventListener('click', ()=>attemptScan(p));
+  document.getElementById('gps-btn').addEventListener('click', ()=>useRealGps(p));
+  document.getElementById('camera-btn').addEventListener('click', ()=>openCameraModal(p));
+  document.getElementById('qr-btn').addEventListener('click', ()=>openQrModal(p));
+  document.getElementById('manual-btn').addEventListener('click', ()=>useManualLatLng(p));
+}
+
+function attemptScan(p){
+  if(state.scanning) return;
+  state.scanning=true; render();
+  setTimeout(()=>{
+    state.scanning=false;
+    const you = L.latLng(state.playerLatLng[0], state.playerLatLng[1]);
+    const target = L.latLng(p.lat, p.lng);
+    const d = you.distanceTo(target);
+    renderPointScreen(document.getElementById('screen'));
+    const slot=document.getElementById('feedback-slot');
+    if(d<=SCAN_TOLERANCE_METERS){
+      state.discovered[p.id] = { status: state.isOffline ? 'pending' : 'synced' };
+      if(state.isOffline) state.pendingQueue.push(p.id);
+      delete state.lastAttempt[p.id];
+      slot.innerHTML = `<div class="feedback ok"><strong>Zdobyto: ${p.name}!</strong><br>
+        ${state.isOffline ? 'Brak zasięgu — zaliczenie zapisano lokalnie i czeka w kolejce do synchronizacji.' : 'Osiągnięcie zweryfikowane i zsynchronizowane z Twoim profilem.'}</div>`;
+      showToast(state.isOffline ? 'Zapisano offline — czeka na synchronizację' : 'Zsynchronizowano z profilem ✓');
+    } else {
+      const prev = state.lastAttempt[p.id];
+      let warmCold='';
+      if(prev!==undefined) warmCold = d < prev ? 'Cieplej niż poprzednio.' : 'Zimniej niż poprzednio — spróbuj w innym miejscu.';
+      state.lastAttempt[p.id]=d;
+      slot.innerHTML = `<div class="feedback no">Nie udało się zweryfikować lokalizacji — jesteś za daleko od dokładnego miejsca.
+        ${warmCold ? `<span class="warm">${warmCold}</span>` : ''}</div>`;
+    }
+  }, 900);
+}
+
+/* ============================= REAL-WORLD TEST: GPS, QR GENERATION, CAMERA SCAN ============================= */
+function useRealGps(p){
+  if(!navigator.geolocation){ showToast('Ta przeglądarka nie obsługuje geolokalizacji.'); return; }
+  showToast('Pobieranie prawdziwej lokalizacji GPS…');
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      state.playerLatLng=[pos.coords.latitude, pos.coords.longitude];
+      state.playerAccuracy=pos.coords.accuracy;
+      showToast(`Pobrano lokalizację (dokładność ±${Math.round(pos.coords.accuracy)} m)`);
+      renderPointScreen(document.getElementById('screen'));
+    },
+    ()=>{ showToast('GPS zablokowane przez przeglądarkę — pliki otwarte z dysku (file://) nie są traktowane jako bezpieczne źródło. Użyj pola "Ustaw współrzędne ręcznie" poniżej.', 5000); },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+}
+
+function useManualLatLng(p){
+  const input=document.getElementById('manual-latlng');
+  const raw=input.value.trim();
+  const parts=raw.split(/[,;\s]+/).map(Number);
+  if(parts.length!==2 || parts.some(n=>Number.isNaN(n))){
+    showToast('Nie rozpoznano współrzędnych — wpisz w formacie: 51.9530, 16.2870');
+    return;
+  }
+  state.playerLatLng=[parts[0], parts[1]];
+  state.playerAccuracy=null;
+  showToast('Ustawiono pozycję ręcznie ✓');
+  renderPointScreen(document.getElementById('screen'));
+}
+
+function openModal(html){
+  const root=document.getElementById('modal-root');
+  root.innerHTML = `<div class="modal-card">${html}</div>`;
+  root.classList.add('show');
+}
+function closeModal(){
+  const root=document.getElementById('modal-root');
+  root.classList.remove('show');
+  root.innerHTML='';
+  stopCamera();
+}
+
+function openQrModal(p){
+  openModal(`
+    <h3>Naklejka QR — ${p.name}</h3>
+    <div id="qr-render-target"></div>
+    <p class="modal-note">Token: <b style="font-family:'IBM Plex Mono',monospace;">${p.qrToken}</b><br>
+    Wydrukuj lub wyświetl ten kod w docelowym miejscu, a następnie zeskanuj go kamerą telefonu z poziomu aplikacji.</p>
+    <button class="modal-close" data-action="closeModal">Zamknij</button>
+  `);
+  const target=document.getElementById('qr-render-target');
+  if(typeof QRCode !== 'undefined'){
+    new QRCode(target, { text:p.qrToken, width:180, height:180, colorDark:'#22301F', colorLight:'#ffffff' });
+  } else {
+    target.innerHTML = `<p style="font-size:12px;color:var(--ink-soft);padding:10px;">Biblioteka do generowania QR nie wczytała się — skopiuj token powyżej i wygeneruj kod w dowolnym generatorze online.</p>`;
+  }
+}
+
+let cameraStream=null, cameraRAF=null;
+
+function openCameraModal(p){
+  openModal(`
+    <h3>Skanowanie kamerą</h3>
+    <div class="camera-wrap"><video id="scan-video" autoplay playsinline muted></video><div class="camera-frame"></div></div>
+    <p class="modal-note" id="camera-status">Uruchamianie kamery…</p>
+    <button class="modal-close" data-action="closeModal">Anuluj</button>
+  `);
+  startCamera(p);
+}
+
+function startCamera(p){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    const status=document.getElementById('camera-status');
+    if(status) status.textContent='Ta przeglądarka nie obsługuje dostępu do kamery.';
+    return;
+  }
+  const decodeAvailable = (typeof jsQR !== 'undefined');
+  navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } }).then(stream=>{
+    cameraStream=stream;
+    const video=document.getElementById('scan-video');
+    if(!video){ stopCamera(); return; }
+    video.srcObject=stream;
+    const status=document.getElementById('camera-status');
+    if(!decodeAvailable){
+      if(status) status.textContent='Kamera działa, ale biblioteka do odczytu kodu się nie wczytała — zamknij i użyj przycisku "Skanuj kod QR (symulacja)".';
+      return;
+    }
+    if(status) status.textContent='Wyceluj w kod QR…';
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    function tick(){
+      if(!cameraStream) return;
+      const vid=document.getElementById('scan-video');
+      if(!vid){ stopCamera(); return; }
+      if(vid.readyState===vid.HAVE_ENOUGH_DATA){
+        canvas.width=vid.videoWidth; canvas.height=vid.videoHeight;
+        ctx.drawImage(vid,0,0,canvas.width,canvas.height);
+        const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=jsQR(imgData.data, imgData.width, imgData.height);
+        if(code && code.data){
+          const scannedToken=code.data;
+          stopCamera(); closeModal();
+          if(scannedToken===p.qrToken){ attemptScan(p); }
+          else { showToast('Zeskanowany kod nie pasuje do tego punktu.'); }
+          return;
+        }
+      }
+      cameraRAF=requestAnimationFrame(tick);
+    }
+    cameraRAF=requestAnimationFrame(tick);
+  }).catch((err)=>{
+    const status=document.getElementById('camera-status');
+    if(status){
+      status.textContent = err && err.name==='NotAllowedError'
+        ? 'Odmówiono dostępu do kamery. Sprawdź ustawienia uprawnień strony w przeglądarce i spróbuj ponownie.'
+        : 'Nie udało się uruchomić kamery: '+(err && err.message ? err.message : 'nieznany błąd')+'.';
+    }
+  });
+}
+
+function stopCamera(){
+  if(cameraRAF) cancelAnimationFrame(cameraRAF);
+  cameraRAF=null;
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream=null; }
+}
+
+/* ============================= RENDER: PROFILE ============================= */
+function renderProfile(el){
+  const total=allPoints().length;
+  const synced=Object.values(state.discovered).filter(d=>d.status==='synced').length;
+  const pending=state.pendingQueue.length;
+  const a=AREAS[0];
+  const collectionDone = a && a.points.length>0 && a.points.every(p=>statusOf(p.id)==='synced');
+
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="n">${synced}</div><div class="l">Zsynchronizowane</div></div>
+      <div class="stat"><div class="n">${pending}</div><div class="l">Oczekujące</div></div>
+      <div class="stat"><div class="n">${total-synced-pending}</div><div class="l">Do odkrycia</div></div>
+    </div>
+    ${a ? `
+    <p class="eyebrow" style="margin-bottom:8px;">Odznaki</p>
+    <div class="badge-grid">
+      <div class="badge ${collectionDone?'':'locked'}"><div class="icn">${collectionDone?'🏅':'🔒'}</div><div class="t">Odkrywca: ${a.name}</div></div>
+    </div>` : ''}
+    <p class="eyebrow" style="margin-bottom:8px;">Kolejka synchronizacji</p>
+    ${pending===0
+      ? `<div class="empty">Brak oczekujących zaliczeń — wszystko zsynchronizowane.</div>`
+      : state.pendingQueue.map(id=>{ const p=allPoints().find(x=>x.id===id); return `<div class="queue-item">${p?p.name:id}<span class="tag pending">oczekuje</span></div>`; }).join('')
+    }
+    <button class="sync-btn" id="sync-btn" ${pending===0 || state.isOffline ? 'disabled':''}>
+      ${state.isOffline ? 'Włącz połączenie, by zsynchronizować' : 'Synchronizuj teraz'}
+    </button>
+    <div class="admin-link" data-action="goAdmin">⚙️ Panel administratora (edycja punktów i kategorii)</div>
+  `;
+  const btn=document.getElementById('sync-btn');
+  if(btn) btn.addEventListener('click', doSync);
+}
+
+function doSync(){
+  if(state.pendingQueue.length===0 || state.isOffline) return;
+  const n=state.pendingQueue.length;
+  state.pendingQueue.forEach(id=>{ state.discovered[id]={status:'synced'}; });
+  state.pendingQueue=[];
+  showToast(`Zsynchronizowano ${n} zaległ${n===1?'e zaliczenie':'ych zaliczeń'} ✓`);
+  render();
+}
+
+/* ================================================================================
+   PANEL ADMINISTRATORA
+   Trzy zakładki: Punkty (dodawanie/edycja/usuwanie atrakcji), Kategorie
+   (dodawanie/edycja/usuwanie kategorii), Eksport (wygenerowanie kodu do wklejenia
+   z powrotem do pliku źródłowego, żeby zmiany były trwałe dla wszystkich).
+================================================================================ */
+function renderAdmin(el){
+  el.innerHTML = `
+    <span class="admin-badge">TRYB ADMINA</span>
+    <p class="sub" style="margin-bottom:16px;">Zmiany zapisują się lokalnie w tej przeglądarce. Użyj zakładki „Eksport”, żeby przenieść je na stałe do pliku i wgrać na hosting.</p>
+    <div class="admin-tabs">
+      <div class="admin-tab ${state.adminTab==='points'?'active':''}" data-action="adminTab" data-tab="points">Punkty</div>
+      <div class="admin-tab ${state.adminTab==='cats'?'active':''}" data-action="adminTab" data-tab="cats">Kategorie</div>
+      <div class="admin-tab ${state.adminTab==='export'?'active':''}" data-action="adminTab" data-tab="export">Eksport</div>
+    </div>
+    <div id="admin-body"></div>
+  `;
+  const body=document.getElementById('admin-body');
+  if(state.adminTab==='points') renderAdminPoints(body);
+  else if(state.adminTab==='cats') renderAdminCats(body);
+  else renderAdminExport(body);
+}
+
+/* ---- PUNKTY ---- */
+function renderAdminPoints(el){
+  const editing = state.editingPointId ? allPoints().find(p=>p.id===state.editingPointId) : null;
+  const areaOptions = AREAS.map(a=>`<option value="${a.id}" ${editing && editing.areaId===a.id ? 'selected':''}>${a.name}</option>`).join('');
+  const catOptions = Object.keys(CATS).map(c=>`<option value="${c}" ${editing && editing.cat===c ? 'selected':''}>${CATS[c].label}</option>`).join('');
+
+  el.innerHTML = `
+    ${allPoints().map(p=>`
+      <div class="admin-row">
+        <div class="swatch" style="background:${CATS[p.cat]?CATS[p.cat].color:'#888'}"></div>
+        <div class="info">
+          <div class="t1">${p.name}</div>
+          <div class="t2">${p.id} · ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} · promień ${p.hintR}m</div>
+        </div>
+        <div class="acts">
+          <div class="icon-btn" data-action="editPoint" data-id="${p.id}" title="Edytuj">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#22301F" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <div class="icon-btn danger" data-action="deletePoint" data-id="${p.id}" title="Usuń">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#A64B3C" stroke-width="1.8"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </div>
+        </div>
+      </div>
+    `).join('') || `<div class="empty">Brak punktów — dodaj pierwszy poniżej.</div>`}
+
+    <div class="admin-form">
+      <h4>${editing ? 'Edytuj punkt: '+editing.name : 'Dodaj nowy punkt'}</h4>
+      <div class="field"><label>OBSZAR</label><select id="f-area">${areaOptions}</select></div>
+      <div class="field-row">
+        <div class="field"><label>ID (bez spacji, unikalne)</label><input id="f-id" value="${editing?editing.id:''}" ${editing?'disabled':''} placeholder="np. pk5"></div>
+        <div class="field"><label>KATEGORIA</label><select id="f-cat">${catOptions}</select></div>
+      </div>
+      <div class="field"><label>NAZWA</label><input id="f-name" value="${editing?editing.name:''}" placeholder="np. Wieża widokowa"></div>
+      <div class="field"><label>WSKAZÓWKA W TERENIE</label><textarea id="f-hint" placeholder="Co pomoże znaleźć dokładne miejsce...">${editing?editing.hint:''}</textarea></div>
+      <div class="field-row">
+        <div class="field"><label>SZEROKOŚĆ (LAT)</label><input id="f-lat" type="number" step="0.000001" value="${editing?editing.lat:''}" placeholder="51.9530"></div>
+        <div class="field"><label>DŁUGOŚĆ (LNG)</label><input id="f-lng" type="number" step="0.000001" value="${editing?editing.lng:''}" placeholder="16.2870"></div>
+      </div>
+      <div class="field"><label>PROMIEŃ STREFY (METRY)</label><input id="f-radius" type="number" value="${editing?editing.hintR:'200'}"></div>
+      <div class="field"><label>TOKEN QR (puste = wygeneruje się automatycznie)</label><input id="f-token" value="${editing?editing.qrToken:''}" placeholder="WSCHOWA-EXPLORE::..."></div>
+      <button class="primary-btn" id="save-point-btn">${editing ? 'Zapisz zmiany' : 'Dodaj punkt'}</button>
+      ${editing ? `<button class="ghost-btn" id="cancel-edit-btn">Anuluj edycję</button>` : ''}
+    </div>
+  `;
+
+  document.getElementById('save-point-btn').addEventListener('click', ()=>saveAdminPoint(editing));
+  const cancelBtn=document.getElementById('cancel-edit-btn');
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{ state.editingPointId=null; renderAdmin(document.getElementById('screen')); });
+}
+
+function saveAdminPoint(editing){
+  const areaId = document.getElementById('f-area').value;
+  const id = document.getElementById('f-id').value.trim();
+  const cat = document.getElementById('f-cat').value;
+  const name = document.getElementById('f-name').value.trim();
+  const hint = document.getElementById('f-hint').value.trim();
+  const lat = parseFloat(document.getElementById('f-lat').value);
+  const lng = parseFloat(document.getElementById('f-lng').value);
+  const hintR = parseInt(document.getElementById('f-radius').value, 10);
+  let qrToken = document.getElementById('f-token').value.trim();
+
+  if(!id || !name || Number.isNaN(lat) || Number.isNaN(lng) || Number.isNaN(hintR)){
+    showToast('Uzupełnij przynajmniej ID, nazwę oraz poprawne współrzędne i promień.', 3200);
+    return;
+  }
+  if(!qrToken) qrToken = `WSCHOWA-EXPLORE::${areaId.toUpperCase()}::${id.toUpperCase()}`;
+
+  const area = getArea(areaId);
+  if(editing){
+    // jeśli zmieniono obszar, usuń z poprzedniego i dodaj do nowego
+    const oldArea = getArea(editing.areaId);
+    const idx = oldArea.points.findIndex(p=>p.id===editing.id);
+    if(idx>-1) oldArea.points.splice(idx,1);
+    area.points.push({ id, cat, name, hint, lat, lng, hintR, qrToken });
+    state.editingPointId=null;
+    showToast('Zapisano zmiany ✓');
+  } else {
+    if(allPoints().some(p=>p.id===id)){ showToast('Punkt o takim ID już istnieje — wybierz inne.', 3200); return; }
+    area.points.push({ id, cat, name, hint, lat, lng, hintR, qrToken });
+    showToast('Dodano nowy punkt ✓');
+  }
+  saveAdminData();
+  renderAdmin(document.getElementById('screen'));
+}
+
+function deleteAdminPoint(id){
+  const p = allPoints().find(x=>x.id===id);
+  if(!p) return;
+  if(!confirm(`Usunąć punkt „${p.name}”? Tej operacji nie można cofnąć.`)) return;
+  const area = getArea(p.areaId);
+  area.points = area.points.filter(x=>x.id!==id);
+  delete state.discovered[id];
+  saveAdminData();
+  showToast('Punkt usunięty');
+  renderAdmin(document.getElementById('screen'));
+}
+
+/* ---- KATEGORIE ---- */
+function renderAdminCats(el){
+  const editing = state.editingCatId ? { id: state.editingCatId, ...CATS[state.editingCatId] } : null;
+  el.innerHTML = `
+    ${Object.keys(CATS).map(cid=>`
+      <div class="admin-row">
+        <div class="swatch" style="background:${CATS[cid].color}"></div>
+        <div class="info">
+          <div class="t1">${CATS[cid].label}</div>
+          <div class="t2">${cid} · używana w ${allPoints().filter(p=>p.cat===cid).length} punktach</div>
+        </div>
+        <div class="acts">
+          <div class="icon-btn" data-action="editCat" data-id="${cid}" title="Edytuj">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#22301F" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <div class="icon-btn danger" data-action="deleteCat" data-id="${cid}" title="Usuń">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#A64B3C" stroke-width="1.8"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </div>
+        </div>
+      </div>
+    `).join('')}
+
+    <div class="admin-form">
+      <h4>${editing ? 'Edytuj kategorię: '+editing.label : 'Dodaj nową kategorię'}</h4>
+      <div class="field-row">
+        <div class="field"><label>ID (bez spacji, unikalne)</label><input id="c-id" value="${editing?editing.id:''}" ${editing?'disabled':''} placeholder="np. gastronomia"></div>
+        <div class="field"><label>KOLOR</label><input id="c-color" type="color" value="${editing?editing.color:'#3F7D52'}"></div>
+      </div>
+      <div class="field"><label>NAZWA WYŚWIETLANA</label><input id="c-label" value="${editing?editing.label:''}" placeholder="np. Gastronomia"></div>
+      <button class="primary-btn" id="save-cat-btn">${editing ? 'Zapisz zmiany' : 'Dodaj kategorię'}</button>
+      ${editing ? `<button class="ghost-btn" id="cancel-cat-btn">Anuluj edycję</button>` : ''}
+    </div>
+  `;
+  document.getElementById('save-cat-btn').addEventListener('click', ()=>saveAdminCat(editing));
+  const cancelBtn=document.getElementById('cancel-cat-btn');
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{ state.editingCatId=null; renderAdmin(document.getElementById('screen')); });
+}
+
+function saveAdminCat(editing){
+  const id = document.getElementById('c-id').value.trim();
+  const color = document.getElementById('c-color').value;
+  const label = document.getElementById('c-label').value.trim();
+  if(!id || !label){ showToast('Uzupełnij ID i nazwę kategorii.', 3000); return; }
+  if(!editing && CATS[id]){ showToast('Kategoria o takim ID już istnieje.', 3000); return; }
+  CATS[id] = { label, color };
+  state.editingCatId=null;
+  saveAdminData();
+  showToast(editing ? 'Zapisano zmiany kategorii ✓' : 'Dodano kategorię ✓');
+  renderAdmin(document.getElementById('screen'));
+}
+
+function deleteAdminCat(id){
+  const inUse = allPoints().filter(p=>p.cat===id).length;
+  if(inUse>0){ showToast(`Nie można usunąć — ${inUse} punkt(y) wciąż używają tej kategorii.`, 3600); return; }
+  if(!confirm(`Usunąć kategorię „${CATS[id].label}”?`)) return;
+  delete CATS[id];
+  saveAdminData();
+  showToast('Kategoria usunięta');
+  renderAdmin(document.getElementById('screen'));
+}
+
+/* ---- EKSPORT ---- */
+function renderAdminExport(el){
+  const code = `const DEFAULT_AREAS = ${JSON.stringify(AREAS, null, 2)};\n\nconst DEFAULT_CATS = ${JSON.stringify(CATS, null, 2)};`;
+  el.innerHTML = `
+    <p class="sub" style="margin-bottom:12px;">Skopiuj poniższy kod i wklej go w pliku <code>index.html</code>, w miejsce obecnych stałych <code>DEFAULT_AREAS</code> i <code>DEFAULT_CATS</code> (na początku sekcji &lt;script&gt;). Potem wgraj nowy plik na hosting — dopiero wtedy zmiany zobaczą wszyscy odwiedzający.</p>
+    <textarea class="export-box" id="export-box" readonly>${code}</textarea>
+    <button class="primary-btn" id="copy-export-btn">Kopiuj do schowka</button>
+    <div class="danger-zone">
+      <p class="sub" style="margin-bottom:8px;">Reset przywraca zawartość tego pliku (usuwa lokalne zmiany zapisane w tej przeglądarce) — nie cofnie zmian, które już wyeksportowałeś i wgrałeś na hosting.</p>
+      <button class="ghost-btn" id="reset-admin-btn">Zresetuj do wersji z pliku</button>
+    </div>
+  `;
+  document.getElementById('copy-export-btn').addEventListener('click', ()=>{
+    const box=document.getElementById('export-box');
+    box.select();
+    navigator.clipboard && navigator.clipboard.writeText(code).then(
+      ()=>showToast('Skopiowano do schowka ✓'),
+      ()=>showToast('Nie udało się skopiować automatycznie — zaznacz tekst i skopiuj ręcznie (Ctrl/Cmd+C).', 4000)
+    );
+  });
+  document.getElementById('reset-admin-btn').addEventListener('click', ()=>{
+    if(!confirm('Usunąć lokalne zmiany i przywrócić dane z pliku?')) return;
+    localStorage.removeItem(ADMIN_STORAGE_KEY);
+    AREAS = JSON.parse(JSON.stringify(DEFAULT_AREAS));
+    CATS = JSON.parse(JSON.stringify(DEFAULT_CATS));
+    showToast('Przywrócono dane domyślne');
+    go('area', {areaId: AREAS[0]?AREAS[0].id:null, filter:'all'});
+  });
+}
+
+/* ============================= ACTIONS ============================= */
+document.addEventListener('click', (e)=>{
+  const t=e.target.closest('[data-action]');
+  if(!t) return;
+  const act=t.dataset.action;
+  if(act==='openPoint'){ go('point', {pointId:t.dataset.point}); }
+  else if(act==='goArea'){ go('area', {filter:'all'}); }
+  else if(act==='goProfile'){ go('profile'); }
+  else if(act==='goAdmin'){ go('admin'); }
+  else if(act==='setFilter'){ state.filter=t.dataset.filter; renderAreaScreen(document.getElementById('screen')); }
+  else if(act==='closeModal'){ closeModal(); }
+  else if(act==='adminTab'){ state.adminTab=t.dataset.tab; state.editingPointId=null; state.editingCatId=null; renderAdmin(document.getElementById('screen')); }
+  else if(act==='editPoint'){ state.editingPointId=t.dataset.id; renderAdmin(document.getElementById('screen')); }
+  else if(act==='deletePoint'){ deleteAdminPoint(t.dataset.id); }
+  else if(act==='editCat'){ state.editingCatId=t.dataset.id; renderAdmin(document.getElementById('screen')); }
+  else if(act==='deleteCat'){ deleteAdminCat(t.dataset.id); }
+  else if(act==='toggleOffline'){
+    state.isOffline=!state.isOffline; render();
+    if(!state.isOffline && state.pendingQueue.length>0){ showToast('Połączono z internetem — synchronizowanie…'); setTimeout(doSync, 700); }
+    else if(state.isOffline){ showToast('Symulacja trybu offline włączona'); }
+  }
+});
+
+function tickClock(){
+  const d=new Date();
+  document.getElementById('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+tickClock(); setInterval(tickClock, 15000);
+
+render();
+</script>
+</body>
+</html>
